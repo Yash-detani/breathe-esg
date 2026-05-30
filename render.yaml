@@ -1,0 +1,45 @@
+services:
+  # Django backend
+  - type: web
+    name: breathe-esg-backend
+    env: python
+    region: singapore
+    buildCommand: |
+      pip install -r backend/requirements.txt
+      cd backend && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py seed_demo
+    startCommand: cd backend && gunicorn breathe_esg.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: breathe-esg-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+  # React frontend
+  - type: web
+    name: breathe-esg-frontend
+    env: static
+    region: singapore
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/build
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          name: breathe-esg-backend
+          type: web
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  - name: breathe-esg-db
+    databaseName: breathe_esg
+    region: singapore
+    plan: free
